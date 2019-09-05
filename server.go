@@ -18,7 +18,7 @@ import (
 
 type ErrorResponse struct {
 	Error   int    `json:"error"`
-	Message string `json:"message"`
+	Message string `json:"msg"`
 }
 
 const (
@@ -80,7 +80,7 @@ type User struct {
 	Token        string   `json:"token"`
 	CategoryList []string `json:"category_list"`
 	FavoriteList []string `json:"favorite_list"`
-	HistoryList  []string `json:"history_list`
+	HistoryList  []string `json:"history_list"`
 }
 
 type RegisterResponse struct {

@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"net/http"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -304,6 +305,9 @@ func webSetList(w http.ResponseWriter, r *http.Request) {
 			webReturnError(w, InvalidSaveList)
 			return
 		}
+		sort.Slice(data2, func(i, j int) bool {
+			return data2[i].Time < data2[j].Time
+		})
 	}
 	if ID, ok := getIDFromToken(token); ok {
 		user := &UserArray[ID]

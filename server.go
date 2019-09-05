@@ -36,6 +36,8 @@ const (
 	InvalidSetList
 	InvalidAddList
 	InvalidDelList
+	InvalidNews
+	InvalidNewsList
 )
 
 func webReturnError(w http.ResponseWriter, errorCode int) {
@@ -67,6 +69,10 @@ func webReturnError(w http.ResponseWriter, errorCode int) {
 		m = "添加的元素不合法"
 	case InvalidDelList:
 		m = "删除的元素不合法"
+	case InvalidNews:
+		m = "非法的新闻"
+	case InvalidNewsList:
+		m = "非法的新闻列表"
 	default:
 		m = "未知错误"
 	}
@@ -513,6 +519,61 @@ func webHasList(w http.ResponseWriter, r *http.Request) {
 	webReturnError(w, InvalidToken)
 }
 
+type ScoreData struct {
+	Score float64 `json:"score"`
+	Word  string  `json:"word"`
+}
+
+type News struct {
+	ID          string      `json:"newsID"`
+	Title       string      `json:"title"`
+	Content     string      `json:"content"`
+	PublishTime string      `json:"publishTime"`
+	Category    string      `json:"category"`
+	Image       string      `json:"image"`
+	Video       string      `json:"video"`
+	Publisher   string      `json:"publisher"`
+	Keywords    []ScoreData `json:"keywords"`
+}
+
+var NewsMap = make(map[string]News)
+var NewsMutex sync.RWMutex
+
+func webAddNews(w http.ResponseWriter, r *http.Request) {
+	if !checkForm(w, r) {
+		return
+	}
+	var news News
+	if err := json.Unmarshal([]byte(r.Form.Get("data")), &news); err != nil {
+		webReturnError(w, InvalidNews)
+		return
+	}
+	NewsMutex.Lock()
+	NewsMap[news.ID] = news
+	NewsMutex.Unlock()
+	fmt.Fprintf(w, "{}")
+}
+
+func webGetNews(w http.ResponseWriter, r *http.Request) {
+	if !checkForm(w, r) {
+		return
+	}
+	var IDList []string
+	if err := json.Unmarshal([]byte(r.Form.Get("data")), &IDList); err != nil {
+		webReturnError(w, InvalidNewsList)
+		return
+	}
+	var data []News
+	NewsMutex.RLock()
+	for _, id := range IDList {
+		if news, ok := NewsMap[id]; ok {
+			data = append(data, news)
+		}
+	}
+	NewsMutex.RUnlock()
+	json.NewEncoder(w).Encode(OkResponse{data})
+}
+
 func main() {
 	http.HandleFunc("/register", webRegister)
 	http.HandleFunc("/login", webLogin)
@@ -523,5 +584,7 @@ func main() {
 	http.HandleFunc("/addList", webAddList)
 	http.HandleFunc("/delList", webDelList)
 	http.HandleFunc("/hasList", webHasList)
+	http.HandleFunc("/addNews", webAddNews)
+	http.HandleFunc("/getNews", webGetNews)
 	log.Fatal(http.ListenAndServe(":18888", nil))
 }

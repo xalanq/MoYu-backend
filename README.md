@@ -196,4 +196,44 @@ go 版本大于等于 1.12
 }
 ```
 
+### POST /addNews
 
+缓存新闻
+
+| name  | value                                                        |
+| ----- | ------------------------------------------------------------ |
+| data  | {"newsID":"id","title":"gg", "content":"hh","publishTime":"aa","category":"tt","image":"[]","video":"","publisher":"no","keywords":[]}                        |
+
+成功则返回
+
+```json
+{}
+```
+
+### POST /getNews
+
+根据 newsID 列表获取新闻列表
+
+| name  | value                                                        |
+| ----- | ------------------------------------------------------------ |
+| data  | ["id"]                       |
+
+成功则返回
+
+```json
+{
+    "data":[
+        {
+            "newsID":"id",
+            "title":"gg",
+            "content":"hh",
+            "publishTime":"aa",
+            "category":"tt",
+            "image":"[]",
+            "video":"",
+            "publisher":"no",
+            "keywords":[]
+        }
+    ]
+}
+```

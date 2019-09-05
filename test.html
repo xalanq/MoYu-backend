@@ -65,3 +65,15 @@
   data: <input type="text" name="data" value="a"><br>
   <input type="submit" value="Submit">
 </form>
+
+<p>Add news:</p>
+<form action="http://127.0.0.1:18888/addNews" method="post">
+  data: <input type="text" name="data" value="{&quot;newsID&quot;:&quot;id&quot;,&quot;title&quot;:&quot;gg&quot;, &quot;content&quot;:&quot;hh&quot;,&quot;publishTime&quot;:&quot;aa&quot;,&quot;category&quot;:&quot;tt&quot;,&quot;image&quot;:&quot;[]&quot;,&quot;video&quot;:&quot;&quot;,&quot;publisher&quot;:&quot;no&quot;,&quot;keywords&quot;:[]}"><br>
+  <input type="submit" value="Submit">
+</form>
+
+<p>Get news:</p>
+<form action="http://127.0.0.1:18888/getNews" method="post">
+  data: <input type="text" name="data" value="[&quot;id&quot;]"><br>
+  <input type="submit" value="Submit">
+</form>

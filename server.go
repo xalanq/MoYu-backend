@@ -32,6 +32,7 @@ const (
 	InvalidAvatar
 	InvalidToken
 	InvalidListType
+	InvalidSaveList
 )
 
 func webReturnError(w http.ResponseWriter, errorCode int) {
@@ -57,6 +58,8 @@ func webReturnError(w http.ResponseWriter, errorCode int) {
 		m = "无效的token"
 	case InvalidListType:
 		m = "类型只能是category、favorite、history之一"
+	case InvalidSaveList:
+		m = "保存的列表不合法"
 	default:
 		m = "未知错误"
 	}
@@ -69,27 +72,20 @@ var UsernameMapID = make(map[string]int)
 var EmailMapID = make(map[string]int)
 
 type User struct {
-	ID           int
-	Username     string
-	Password     string
-	Email        string
-	Avatar       string
-	Token        string
-	CategoryList []string
-	FavoriteList []string
-	HistoryList  []string
+	ID           int      `json:"id"`
+	Username     string   `json:"username"`
+	Password     string   `json:"-"`
+	Email        string   `json:"email"`
+	Avatar       string   `json:"avatar"`
+	Token        string   `json:"token"`
+	CategoryList []string `json:"category_list"`
+	FavoriteList []string `json:"favorite_list"`
+	HistoryList  []string `json:"history_list`
 }
 
 type RegisterResponse struct {
 	ID    int    `json:"id"`
 	Token string `json:"token"`
-}
-
-type LoginResponse struct {
-	ID       int    `json:"id"`
-	Username string `json:"username"`
-	Email    string `json:"email"`
-	Token    string `json:"token"`
 }
 
 func validate(text, reg string) (string, bool) {
@@ -178,7 +174,7 @@ func webRegister(w http.ResponseWriter, r *http.Request) {
 	password = fmt.Sprintf("%x", sha256.Sum256([]byte("gggg"+password+"mf")))
 	ID := len(UserArray)
 	token := resetAccessToken(ID, "")
-	user := User{ID, username, password, email, token, avatar, make([]string, 0), make([]string, 0), make([]string, 0)}
+	user := User{ID, username, password, email, avatar, token, make([]string, 0), make([]string, 0), make([]string, 0)}
 	UserArray = append(UserArray, user)
 	UsernameMapID[username] = ID
 	EmailMapID[email] = ID
@@ -192,10 +188,9 @@ func webLogin(w http.ResponseWriter, r *http.Request) {
 	username := r.Form.Get("username")
 	password := fmt.Sprintf("%x", sha256.Sum256([]byte("gggg"+r.Form.Get("password")+"mf")))
 	if ID, ok := UsernameMapID[username]; ok {
-		user := UserArray[ID]
-		if user.Password == password {
-			user.Token = resetAccessToken(ID, user.Token)
-			json.NewEncoder(w).Encode(LoginResponse{ID, user.Username, user.Email, user.Token})
+		if UserArray[ID].Password == password {
+			UserArray[ID].Token = resetAccessToken(ID, UserArray[ID].Token)
+			json.NewEncoder(w).Encode(UserArray[ID])
 			return
 		}
 	}
@@ -213,8 +208,7 @@ func webUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if ID, ok := getIDFromToken(token); ok {
-		user := UserArray[ID]
-		user.Avatar = avatar
+		UserArray[ID].Avatar = avatar
 		fmt.Fprintf(w, "{}")
 		return
 	}
@@ -239,7 +233,6 @@ func webGetList(w http.ResponseWriter, r *http.Request) {
 	if tmp, err := strconv.Atoi(r.Form.Get("limit")); err == nil && tmp >= -1 {
 		limit = tmp
 	}
-
 	if ID, ok := getIDFromToken(token); ok {
 		user := UserArray[ID]
 		var retList []string
@@ -265,10 +258,41 @@ func webGetList(w http.ResponseWriter, r *http.Request) {
 	webReturnError(w, InvalidToken)
 }
 
+func webSaveList(w http.ResponseWriter, r *http.Request) {
+	if !checkForm(w, r) {
+		return
+	}
+	token := r.Form.Get("token")
+	listType, ok := validate(r.Form.Get("type"), `(category|favorite|history)`)
+	if !ok {
+		webReturnError(w, InvalidListType)
+		return
+	}
+	var data []string
+	if err := json.Unmarshal([]byte(r.Form.Get("data")), &data); err != nil {
+		webReturnError(w, InvalidSaveList)
+		return
+	}
+	if ID, ok := getIDFromToken(token); ok {
+		switch listType {
+		case "category":
+			UserArray[ID].CategoryList = data
+		case "favorite":
+			UserArray[ID].FavoriteList = data
+		case "history":
+			UserArray[ID].HistoryList = data
+		}
+		fmt.Fprintf(w, "{}")
+		return
+	}
+	webReturnError(w, InvalidToken)
+}
+
 func main() {
 	http.HandleFunc("/register", webRegister)
 	http.HandleFunc("/login", webLogin)
 	http.HandleFunc("/user", webUser)
 	http.HandleFunc("/getList", webGetList)
+	http.HandleFunc("/saveList", webSaveList)
 	log.Fatal(http.ListenAndServe(":18888", nil))
 }

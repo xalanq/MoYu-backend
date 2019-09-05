@@ -71,16 +71,23 @@ var UserTokenMapID = make(map[string]int)
 var UsernameMapID = make(map[string]int)
 var EmailMapID = make(map[string]int)
 
+type Item struct {
+	NewsID string `json:"news_id"`
+	Time   string `json:"time"`
+}
+
 type User struct {
-	ID           int      `json:"id"`
-	Username     string   `json:"username"`
-	Password     string   `json:"-"`
-	Email        string   `json:"email"`
-	Avatar       string   `json:"avatar"`
-	Token        string   `json:"token"`
-	CategoryList []string `json:"category_list"`
-	FavoriteList []string `json:"favorite_list"`
-	HistoryList  []string `json:"history_list"`
+	lock              *sync.RWMutex
+	ID                int      `json:"id"`
+	Username          string   `json:"username"`
+	Password          string   `json:"-"`
+	Email             string   `json:"email"`
+	Avatar            string   `json:"avatar"`
+	Token             string   `json:"token"`
+	CategoryList      []string `json:"category_list"`
+	SearchHistoryList []string `json:"search_history_list"`
+	FavoriteList      []Item   `json:"favorite_list"`
+	HistoryList       []Item   `json:"history_list"`
 }
 
 type RegisterResponse struct {
@@ -102,7 +109,7 @@ func newToken() string {
 	return strings.ToUpper(hex.EncodeToString(b))
 }
 
-var TokenMutex sync.Mutex
+var TokenMutex sync.RWMutex
 
 func resetAccessToken(ID int, oldToken string) string {
 	TokenMutex.Lock()
@@ -120,8 +127,8 @@ func resetAccessToken(ID int, oldToken string) string {
 }
 
 func getIDFromToken(token string) (int, bool) {
-	TokenMutex.Lock()
-	defer TokenMutex.Unlock()
+	TokenMutex.RLock()
+	defer TokenMutex.RUnlock()
 	ID, ok := UserTokenMapID[token]
 	return ID, ok
 }
@@ -174,7 +181,7 @@ func webRegister(w http.ResponseWriter, r *http.Request) {
 	password = fmt.Sprintf("%x", sha256.Sum256([]byte("gggg"+password+"mf")))
 	ID := len(UserArray)
 	token := resetAccessToken(ID, "")
-	user := User{ID, username, password, email, avatar, token, make([]string, 0), make([]string, 0), make([]string, 0)}
+	user := User{new(sync.RWMutex), ID, username, password, email, avatar, token, make([]string, 0), make([]string, 0), make([]Item, 0), make([]Item, 0)}
 	UserArray = append(UserArray, user)
 	UsernameMapID[username] = ID
 	EmailMapID[email] = ID
@@ -188,9 +195,10 @@ func webLogin(w http.ResponseWriter, r *http.Request) {
 	username := r.Form.Get("username")
 	password := fmt.Sprintf("%x", sha256.Sum256([]byte("gggg"+r.Form.Get("password")+"mf")))
 	if ID, ok := UsernameMapID[username]; ok {
-		if UserArray[ID].Password == password {
-			UserArray[ID].Token = resetAccessToken(ID, UserArray[ID].Token)
-			json.NewEncoder(w).Encode(UserArray[ID])
+		user := &UserArray[ID]
+		if user.Password == password {
+			user.Token = resetAccessToken(ID, user.Token)
+			json.NewEncoder(w).Encode(user)
 			return
 		}
 	}
@@ -208,7 +216,10 @@ func webUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if ID, ok := getIDFromToken(token); ok {
-		UserArray[ID].Avatar = avatar
+		user := &UserArray[ID]
+		user.lock.Lock()
+		user.Avatar = avatar
+		user.lock.Unlock()
 		fmt.Fprintf(w, "{}")
 		return
 	}
@@ -220,7 +231,7 @@ func webGetList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token := r.Form.Get("token")
-	listType, ok := validate(r.Form.Get("type"), `(category|favorite|history)`)
+	listType, ok := validate(r.Form.Get("type"), `(category|search_history|favorite|history)`)
 	if !ok {
 		webReturnError(w, InvalidListType)
 		return
@@ -234,53 +245,79 @@ func webGetList(w http.ResponseWriter, r *http.Request) {
 		limit = tmp
 	}
 	if ID, ok := getIDFromToken(token); ok {
-		user := UserArray[ID]
-		var retList []string
+		user := &UserArray[ID]
+		user.lock.RLock()
+		defer user.lock.RUnlock()
+		num := 0
 		switch listType {
 		case "category":
-			retList = user.CategoryList
+			num = len(user.CategoryList)
+		case "search_history":
+			num = len(user.SearchHistoryList)
 		case "favorite":
-			retList = user.FavoriteList
+			num = len(user.FavoriteList)
 		case "history":
-			retList = user.HistoryList
+			num = len(user.HistoryList)
 		}
 		end := skip + limit
-		if limit == -1 || end > len(retList) {
-			end = len(retList)
+		if limit == -1 || end > num {
+			end = num
 		}
 		if skip >= end {
 			json.NewEncoder(w).Encode(make([]string, 0))
 			return
 		}
-		json.NewEncoder(w).Encode(retList[skip:end])
+		switch listType {
+		case "category":
+			json.NewEncoder(w).Encode(user.CategoryList[skip:end])
+		case "search_history":
+			json.NewEncoder(w).Encode(user.FavoriteList[skip:end])
+		case "favorite":
+			json.NewEncoder(w).Encode(user.FavoriteList[skip:end])
+		case "history":
+			json.NewEncoder(w).Encode(user.FavoriteList[skip:end])
+		}
 		return
 	}
 	webReturnError(w, InvalidToken)
 }
 
-func webSaveList(w http.ResponseWriter, r *http.Request) {
+func webSetList(w http.ResponseWriter, r *http.Request) {
 	if !checkForm(w, r) {
 		return
 	}
 	token := r.Form.Get("token")
-	listType, ok := validate(r.Form.Get("type"), `(category|favorite|history)`)
+	listType, ok := validate(r.Form.Get("type"), `(category|search_history|favorite|history)`)
 	if !ok {
 		webReturnError(w, InvalidListType)
 		return
 	}
-	var data []string
-	if err := json.Unmarshal([]byte(r.Form.Get("data")), &data); err != nil {
-		webReturnError(w, InvalidSaveList)
-		return
+	var data1 []string
+	var data2 []Item
+	if listType == "category" || listType == "search_history" {
+		if err := json.Unmarshal([]byte(r.Form.Get("data")), &data1); err != nil {
+			webReturnError(w, InvalidSaveList)
+			return
+		}
+	} else {
+		if err := json.Unmarshal([]byte(r.Form.Get("data")), &data2); err != nil {
+			webReturnError(w, InvalidSaveList)
+			return
+		}
 	}
 	if ID, ok := getIDFromToken(token); ok {
+		user := &UserArray[ID]
+		user.lock.Lock()
+		defer user.lock.Unlock()
 		switch listType {
 		case "category":
-			UserArray[ID].CategoryList = data
+			user.CategoryList = data1
+		case "search_history":
+			user.SearchHistoryList = data1
 		case "favorite":
-			UserArray[ID].FavoriteList = data
+			user.FavoriteList = data2
 		case "history":
-			UserArray[ID].HistoryList = data
+			user.HistoryList = data2
 		}
 		fmt.Fprintf(w, "{}")
 		return
@@ -293,6 +330,6 @@ func main() {
 	http.HandleFunc("/login", webLogin)
 	http.HandleFunc("/user", webUser)
 	http.HandleFunc("/getList", webGetList)
-	http.HandleFunc("/saveList", webSaveList)
+	http.HandleFunc("/setList", webSetList)
 	log.Fatal(http.ListenAndServe(":18888", nil))
 }

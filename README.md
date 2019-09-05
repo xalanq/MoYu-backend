@@ -38,8 +38,8 @@ go 版本大于等于 1.12
 
 ```json
 {
-    "id": 1, // 一个整数，表示用户 id
-    "token": "15C174D7BED730704D65822107FCFD5278629A0F5F3F164FD5104DC76695721D" // 授权 token
+    "id": 1, // 一个整数，表示用户id
+    "token": "15C174D7BED730704D65822107FCFD5278629A0F5F3F164FD5104DC76695721D"
 }
 ```
 
@@ -62,7 +62,6 @@ go 版本大于等于 1.12
     "username":"aaa",
     "email":"aaaa@aa.com",
     "avatar":"",
-    // 此 token 是新产生的，之前的 token 会失效
     "token":"15C174E38B933784B80704BB7B4D7C03365A858149C6E2D157E9D1860D1D68D8",
     "category_list":[],
     "favorite_list":[],
@@ -89,26 +88,32 @@ go 版本大于等于 1.12
 
 获取列表
 
-| name  | value                                                        | 描述                             |
-| ----- | ------------------------------------------------------------ | -------------------------------- |
-| token | 15C174E38B933784B80704BB7B4D7C03365A858149C6E2D157E9D1860D1D68D8 |                                  |
-| type  | category                                                     | category、favorite、history 之一 |
+| name  | value                                                        | 描述                                             |
+| ----- | ------------------------------------------------------------ | ------------------------------------------------ |
+| token | 15C174E38B933784B80704BB7B4D7C03365A858149C6E2D157E9D1860D1D68D8 |                                                  |
+| type  | category                                                     | category、search_history、favorite、history 之一 |
 
-成功则返回
+成功则返回（category 和 search_history）
 
 ```json
 ["a","b"]
+```
+
+或者（favorite 和 history）
+
+```json
+[{"news_id":"a","time":"gg"}]
 ```
 
 ### POST /setList
 
 设置列表
 
-| name  | value                                                        | 描述                             |
-| ----- | ------------------------------------------------------------ | -------------------------------- |
-| token | 15C174E38B933784B80704BB7B4D7C03365A858149C6E2D157E9D1860D1D68D8 |                                  |
-| type  | category                                                     | category、favorite、history 之一 |
-| data  | ["a","b"]                                                    | 列表的数据                       |
+| name  | value                                                        | 描述                                             |
+| ----- | ------------------------------------------------------------ | ------------------------------------------------ |
+| token | 15C174E38B933784B80704BB7B4D7C03365A858149C6E2D157E9D1860D1D68D8 |                                                  |
+| type  | category                                                     | category、search_history、favorite、history 之一 |
+| data  | ["a","b"] 或者 [{"news_id":"a","time":"gg"}]                 | 列表的数据                                       |
 
 成功则返回
 

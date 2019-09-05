@@ -115,13 +115,17 @@ go 版本大于等于 1.12
 成功则返回（category 和 search_history）
 
 ```json
-["a","b"]
+{
+	"data": ["a","b"]
+}
 ```
 
 或者（favorite 和 history）
 
 ```json
-[{"news_id":"a","time":"gg"}]
+{
+	"data": [{"news_id":"a","time":"gg"}]
+}
 ```
 
 ### POST /setList
@@ -171,4 +175,23 @@ go 版本大于等于 1.12
 ```json
 {}
 ```
+
+### POST /hasList
+
+判断元素是否存在
+
+| name  | value                                                        |
+| ----- | ------------------------------------------------------------ |
+| token | 15C174E38B933784B80704BB7B4D7C03365A858149C6E2D157E9D1860D1D68D8 |
+| type  | category                                                     |
+| data  | a 或者 news_id                        |
+
+成功则返回
+
+```json
+{
+	"data": true
+}
+```
+
 

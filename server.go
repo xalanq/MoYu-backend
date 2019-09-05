@@ -73,6 +73,10 @@ func webReturnError(w http.ResponseWriter, errorCode int) {
 	json.NewEncoder(w).Encode(ErrorResponse{errorCode, m})
 }
 
+type OkResponse struct {
+	Data interface{} `json:"data"`
+}
+
 func validate(text, reg string) (string, bool) {
 	r := regexp.MustCompile("^" + reg + "$")
 	return text, r.MatchString(text)
@@ -307,16 +311,18 @@ func webGetList(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(make([]string, 0))
 			return
 		}
+		var resp OkResponse
 		switch listType {
 		case "category":
-			json.NewEncoder(w).Encode(reverse1(user.CategoryList[skip:end]))
+			resp = OkResponse{reverse1(user.CategoryList[skip:end])}
 		case "search_history":
-			json.NewEncoder(w).Encode(reverse1(user.SearchHistoryList[skip:end]))
+			resp = OkResponse{reverse1(user.SearchHistoryList[skip:end])}
 		case "favorite":
-			json.NewEncoder(w).Encode(reverse2(user.FavoriteList[skip:end]))
+			resp = OkResponse{reverse2(user.FavoriteList[skip:end])}
 		case "history":
-			json.NewEncoder(w).Encode(reverse2(user.HistoryList[skip:end]))
+			resp = OkResponse{reverse2(user.HistoryList[skip:end])}
 		}
+		json.NewEncoder(w).Encode(resp)
 		return
 	}
 	webReturnError(w, InvalidToken)
@@ -457,6 +463,56 @@ func webDelList(w http.ResponseWriter, r *http.Request) {
 	webReturnError(w, InvalidToken)
 }
 
+func has1(a []string, key string) bool {
+	for i := 0; i < len(a); i++ {
+		if a[i] == key {
+			return true
+		}
+	}
+	return false
+}
+
+func has2(a []Item, key string) bool {
+	for i := 0; i < len(a); i++ {
+		if a[i].NewsID == key {
+			return true
+		}
+	}
+	return false
+}
+
+func webHasList(w http.ResponseWriter, r *http.Request) {
+	if !checkForm(w, r) {
+		return
+	}
+	token := r.Form.Get("token")
+	listType, ok := validate(r.Form.Get("type"), `(category|search_history|favorite|history)`)
+	if !ok {
+		webReturnError(w, InvalidListType)
+		return
+	}
+	data := r.Form.Get("data")
+	if ID, ok := getIDFromToken(token); ok {
+		user := &UserArray[ID]
+		user.lock.RLock()
+		has := false
+		defer user.lock.RUnlock()
+		switch listType {
+		case "category":
+			has = has1(user.CategoryList, data)
+		case "search_history":
+			has = has1(user.SearchHistoryList, data)
+		case "favorite":
+			has = has2(user.FavoriteList, data)
+		case "history":
+			has = has2(user.HistoryList, data)
+		}
+		json.NewEncoder(w).Encode(OkResponse{has})
+		return
+	}
+	webReturnError(w, InvalidToken)
+}
+
 func main() {
 	http.HandleFunc("/register", webRegister)
 	http.HandleFunc("/login", webLogin)
@@ -466,5 +522,6 @@ func main() {
 	http.HandleFunc("/setList", webSetList)
 	http.HandleFunc("/addList", webAddList)
 	http.HandleFunc("/delList", webDelList)
+	http.HandleFunc("/hasList", webHasList)
 	log.Fatal(http.ListenAndServe(":18888", nil))
 }

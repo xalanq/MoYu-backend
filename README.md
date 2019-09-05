@@ -69,7 +69,26 @@ go 版本大于等于 1.12
 }
 ```
 
-### POST /user
+### POST /userInfo
+
+获取用户信息
+
+| name  | value                                                        |
+| ----- | ------------------------------------------------------------ |
+| token | 15C174E38B933784B80704BB7B4D7C03365A858149C6E2D157E9D1860D1D68D8 |
+
+成功则返回
+
+```json
+{
+	"id":0,
+	"username":"aaa",
+	"email":"aaaa@aa.com",
+	"avatar":"http://www.xxx.com/1.png"
+}
+```
+
+### POST /userEdit
 
 用户修改头像
 

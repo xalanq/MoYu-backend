@@ -73,39 +73,15 @@ func webReturnError(w http.ResponseWriter, errorCode int) {
 	json.NewEncoder(w).Encode(ErrorResponse{errorCode, m})
 }
 
-var UserArray = make([]User, 0)
-var UserTokenMapID = make(map[string]int)
-var UsernameMapID = make(map[string]int)
-var EmailMapID = make(map[string]int)
-
-type Item struct {
-	NewsID string `json:"news_id"`
-	Time   string `json:"time"`
-}
-
-type User struct {
-	lock              *sync.RWMutex
-	ID                int      `json:"id"`
-	Username          string   `json:"username"`
-	Password          string   `json:"-"`
-	Email             string   `json:"email"`
-	Avatar            string   `json:"avatar"`
-	Token             string   `json:"token"`
-	CategoryList      []string `json:"category_list"`
-	SearchHistoryList []string `json:"search_history_list"`
-	FavoriteList      []Item   `json:"favorite_list"`
-	HistoryList       []Item   `json:"history_list"`
-}
-
-type RegisterResponse struct {
-	ID    int    `json:"id"`
-	Token string `json:"token"`
-}
-
 func validate(text, reg string) (string, bool) {
 	r := regexp.MustCompile("^" + reg + "$")
 	return text, r.MatchString(text)
 }
+
+var UserArray = make([]User, 0)
+var UserTokenMapID = make(map[string]int)
+var UsernameMapID = make(map[string]int)
+var EmailMapID = make(map[string]int)
 
 func newToken() string {
 	b := make([]byte, 32)
@@ -149,6 +125,30 @@ func checkForm(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
+type Item struct {
+	NewsID string `json:"news_id"`
+	Time   string `json:"time"`
+}
+
+type User struct {
+	lock              *sync.RWMutex
+	ID                int      `json:"id"`
+	Username          string   `json:"username"`
+	Password          string   `json:"-"`
+	Email             string   `json:"email"`
+	Avatar            string   `json:"avatar"`
+	Token             string   `json:"token"`
+	CategoryList      []string `json:"category_list"`
+	SearchHistoryList []string `json:"search_history_list"`
+	FavoriteList      []Item   `json:"favorite_list"`
+	HistoryList       []Item   `json:"history_list"`
+}
+
+type RegisterResponse struct {
+	ID    int    `json:"id"`
+	Token string `json:"token"`
+}
+
 var RegisterMutex sync.Mutex
 
 func webRegister(w http.ResponseWriter, r *http.Request) {
@@ -170,11 +170,6 @@ func webRegister(w http.ResponseWriter, r *http.Request) {
 		webReturnError(w, InvalidEmail)
 		return
 	}
-	avatar, ok := validate(r.Form.Get("avatar"), `\S{0,200}`)
-	if !ok {
-		webReturnError(w, InvalidAvatar)
-		return
-	}
 	if _, ok = UsernameMapID[username]; ok {
 		webReturnError(w, UsernameExist)
 		return
@@ -188,7 +183,7 @@ func webRegister(w http.ResponseWriter, r *http.Request) {
 	password = fmt.Sprintf("%x", sha256.Sum256([]byte("gggg"+password+"mf")))
 	ID := len(UserArray)
 	token := resetAccessToken(ID, "")
-	user := User{new(sync.RWMutex), ID, username, password, email, avatar, token, make([]string, 0), make([]string, 0), make([]Item, 0), make([]Item, 0)}
+	user := User{new(sync.RWMutex), ID, username, password, email, "", token, make([]string, 0), make([]string, 0), make([]Item, 0), make([]Item, 0)}
 	UserArray = append(UserArray, user)
 	UsernameMapID[username] = ID
 	EmailMapID[email] = ID
@@ -212,7 +207,29 @@ func webLogin(w http.ResponseWriter, r *http.Request) {
 	webReturnError(w, InvalidUsernameOrPassword)
 }
 
-func webUser(w http.ResponseWriter, r *http.Request) {
+type UserInfoResponse struct {
+	ID       int    `json:"id"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	Avatar   string `json:"avatar"`
+}
+
+func webUserInfo(w http.ResponseWriter, r *http.Request) {
+	if !checkForm(w, r) {
+		return
+	}
+	token := r.Form.Get("token")
+	if ID, ok := getIDFromToken(token); ok {
+		user := &UserArray[ID]
+		user.lock.RLock()
+		defer user.lock.RUnlock()
+		json.NewEncoder(w).Encode(UserInfoResponse{user.ID, user.Username, user.Email, user.Avatar})
+		return
+	}
+	webReturnError(w, InvalidToken)
+}
+
+func webUserEdit(w http.ResponseWriter, r *http.Request) {
 	if !checkForm(w, r) {
 		return
 	}
@@ -443,7 +460,8 @@ func webDelList(w http.ResponseWriter, r *http.Request) {
 func main() {
 	http.HandleFunc("/register", webRegister)
 	http.HandleFunc("/login", webLogin)
-	http.HandleFunc("/user", webUser)
+	http.HandleFunc("/userInfo", webUserInfo)
+	http.HandleFunc("/userEdit", webUserEdit)
 	http.HandleFunc("/getList", webGetList)
 	http.HandleFunc("/setList", webSetList)
 	http.HandleFunc("/addList", webAddList)

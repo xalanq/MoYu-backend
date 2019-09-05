@@ -63,9 +63,6 @@ go 版本大于等于 1.12
     "email":"aaaa@aa.com",
     "avatar":"",
     "token":"15C174E38B933784B80704BB7B4D7C03365A858149C6E2D157E9D1860D1D68D8",
-    "category_list":[],
-    "favorite_list":[],
-    "history_list":[]
 }
 ```
 
@@ -81,10 +78,11 @@ go 版本大于等于 1.12
 
 ```json
 {
-	"id":0,
-	"username":"aaa",
-	"email":"aaaa@aa.com",
-	"avatar":"http://www.xxx.com/1.png"
+    "id":0,
+    "username":"aaa",
+    "email":"aaaa@aa.com",
+    "avatar":"",
+    "token":"15C174E38B933784B80704BB7B4D7C03365A858149C6E2D157E9D1860D1D68D8",
 }
 ```
 

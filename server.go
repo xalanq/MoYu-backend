@@ -148,10 +148,10 @@ type User struct {
 	Email             string   `json:"email"`
 	Avatar            string   `json:"avatar"`
 	Token             string   `json:"token"`
-	CategoryList      []string `json:"category_list"`
-	SearchHistoryList []string `json:"search_history_list"`
-	FavoriteList      []Item   `json:"favorite_list"`
-	HistoryList       []Item   `json:"history_list"`
+	CategoryList      []string `json:"-"`
+	SearchHistoryList []string `json:"-"`
+	FavoriteList      []Item   `json:"-"`
+	HistoryList       []Item   `json:"-"`
 }
 
 type RegisterResponse struct {
@@ -217,13 +217,6 @@ func webLogin(w http.ResponseWriter, r *http.Request) {
 	webReturnError(w, InvalidUsernameOrPassword)
 }
 
-type UserInfoResponse struct {
-	ID       int    `json:"id"`
-	Username string `json:"username"`
-	Email    string `json:"email"`
-	Avatar   string `json:"avatar"`
-}
-
 func webUserInfo(w http.ResponseWriter, r *http.Request) {
 	if !checkForm(w, r) {
 		return
@@ -233,7 +226,7 @@ func webUserInfo(w http.ResponseWriter, r *http.Request) {
 		user := &UserArray[ID]
 		user.lock.RLock()
 		defer user.lock.RUnlock()
-		json.NewEncoder(w).Encode(UserInfoResponse{user.ID, user.Username, user.Email, user.Avatar})
+		json.NewEncoder(w).Encode(user)
 		return
 	}
 	webReturnError(w, InvalidToken)

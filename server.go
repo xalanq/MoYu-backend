@@ -33,7 +33,9 @@ const (
 	InvalidAvatar
 	InvalidToken
 	InvalidListType
-	InvalidSaveList
+	InvalidSetList
+	InvalidAddList
+	InvalidDelList
 )
 
 func webReturnError(w http.ResponseWriter, errorCode int) {
@@ -59,8 +61,12 @@ func webReturnError(w http.ResponseWriter, errorCode int) {
 		m = "无效的token"
 	case InvalidListType:
 		m = "类型只能是category、favorite、history之一"
-	case InvalidSaveList:
+	case InvalidSetList:
 		m = "保存的列表不合法"
+	case InvalidAddList:
+		m = "添加的元素不合法"
+	case InvalidDelList:
+		m = "删除的元素不合法"
 	default:
 		m = "未知错误"
 	}
@@ -227,6 +233,22 @@ func webUser(w http.ResponseWriter, r *http.Request) {
 	webReturnError(w, InvalidToken)
 }
 
+func reverse1(a []string) []string {
+	ret := make([]string, len(a))
+	for i := 0; i < len(a); i++ {
+		ret[i] = a[len(a)-1-i]
+	}
+	return ret
+}
+
+func reverse2(a []Item) []Item {
+	ret := make([]Item, len(a))
+	for i := 0; i < len(a); i++ {
+		ret[i] = a[len(a)-1-i]
+	}
+	return ret
+}
+
 func webGetList(w http.ResponseWriter, r *http.Request) {
 	if !checkForm(w, r) {
 		return
@@ -270,13 +292,13 @@ func webGetList(w http.ResponseWriter, r *http.Request) {
 		}
 		switch listType {
 		case "category":
-			json.NewEncoder(w).Encode(user.CategoryList[skip:end])
+			json.NewEncoder(w).Encode(reverse1(user.CategoryList[skip:end]))
 		case "search_history":
-			json.NewEncoder(w).Encode(user.FavoriteList[skip:end])
+			json.NewEncoder(w).Encode(reverse1(user.SearchHistoryList[skip:end]))
 		case "favorite":
-			json.NewEncoder(w).Encode(user.FavoriteList[skip:end])
+			json.NewEncoder(w).Encode(reverse2(user.FavoriteList[skip:end]))
 		case "history":
-			json.NewEncoder(w).Encode(user.FavoriteList[skip:end])
+			json.NewEncoder(w).Encode(reverse2(user.HistoryList[skip:end]))
 		}
 		return
 	}
@@ -297,12 +319,12 @@ func webSetList(w http.ResponseWriter, r *http.Request) {
 	var data2 []Item
 	if listType == "category" || listType == "search_history" {
 		if err := json.Unmarshal([]byte(r.Form.Get("data")), &data1); err != nil {
-			webReturnError(w, InvalidSaveList)
+			webReturnError(w, InvalidSetList)
 			return
 		}
 	} else {
 		if err := json.Unmarshal([]byte(r.Form.Get("data")), &data2); err != nil {
-			webReturnError(w, InvalidSaveList)
+			webReturnError(w, InvalidSetList)
 			return
 		}
 		sort.Slice(data2, func(i, j int) bool {
@@ -315,13 +337,102 @@ func webSetList(w http.ResponseWriter, r *http.Request) {
 		defer user.lock.Unlock()
 		switch listType {
 		case "category":
-			user.CategoryList = data1
+			user.CategoryList = reverse1(data1)
 		case "search_history":
-			user.SearchHistoryList = data1
+			user.SearchHistoryList = reverse1(data1)
 		case "favorite":
-			user.FavoriteList = data2
+			user.FavoriteList = reverse2(data2)
 		case "history":
-			user.HistoryList = data2
+			user.HistoryList = reverse2(data2)
+		}
+		fmt.Fprintf(w, "{}")
+		return
+	}
+	webReturnError(w, InvalidToken)
+}
+
+func webAddList(w http.ResponseWriter, r *http.Request) {
+	if !checkForm(w, r) {
+		return
+	}
+	token := r.Form.Get("token")
+	listType, ok := validate(r.Form.Get("type"), `(category|search_history|favorite|history)`)
+	if !ok {
+		webReturnError(w, InvalidListType)
+		return
+	}
+	var data1 string
+	var data2 Item
+	if listType == "category" || listType == "search_history" {
+		data1 = r.Form.Get("data")
+	} else {
+		if err := json.Unmarshal([]byte(r.Form.Get("data")), &data2); err != nil {
+			webReturnError(w, InvalidAddList)
+			return
+		}
+	}
+	if ID, ok := getIDFromToken(token); ok {
+		user := &UserArray[ID]
+		user.lock.Lock()
+		defer user.lock.Unlock()
+		switch listType {
+		case "category":
+			user.CategoryList = append(user.CategoryList, data1)
+		case "search_history":
+			user.SearchHistoryList = append(user.SearchHistoryList, data1)
+		case "favorite":
+			user.FavoriteList = append(user.FavoriteList, data2)
+		case "history":
+			user.HistoryList = append(user.HistoryList, data2)
+		}
+		fmt.Fprintf(w, "{}")
+		return
+	}
+	webReturnError(w, InvalidToken)
+}
+
+func remove1(a []string, key string) []string {
+	for i := 0; i < len(a); i++ {
+		if a[i] == key {
+			return a[:i+copy(a[i:], a[i+1:])]
+		}
+	}
+	return a
+}
+
+func remove2(a []Item, key string) []Item {
+	for i := 0; i < len(a); i++ {
+		if a[i].NewsID == key {
+			return a[:i+copy(a[i:], a[i+1:])]
+		}
+	}
+	return a
+}
+
+func webDelList(w http.ResponseWriter, r *http.Request) {
+	if !checkForm(w, r) {
+		return
+	}
+	token := r.Form.Get("token")
+	listType, ok := validate(r.Form.Get("type"), `(category|search_history|favorite|history)`)
+	if !ok {
+		webReturnError(w, InvalidListType)
+		return
+	}
+	data := r.Form.Get("data")
+	if ID, ok := getIDFromToken(token); ok {
+		user := &UserArray[ID]
+		user.lock.Lock()
+		defer user.lock.Unlock()
+		switch listType {
+		case "category":
+			user.CategoryList = remove1(user.CategoryList, data)
+		case "search_history":
+			user.SearchHistoryList = remove1(user.SearchHistoryList, data)
+		case "favorite":
+			user.FavoriteList = remove2(user.FavoriteList, data)
+		case "history":
+			user.HistoryList = remove2(user.HistoryList, data)
 		}
 		fmt.Fprintf(w, "{}")
 		return
@@ -335,5 +446,7 @@ func main() {
 	http.HandleFunc("/user", webUser)
 	http.HandleFunc("/getList", webGetList)
 	http.HandleFunc("/setList", webSetList)
+	http.HandleFunc("/addList", webAddList)
+	http.HandleFunc("/delList", webDelList)
 	log.Fatal(http.ListenAndServe(":18888", nil))
 }

@@ -1,0 +1,37 @@
+<p>Register:</p>
+<form action="http://127.0.0.1:18888/register" method="post">
+  username: <input type="text" name="username" value="aaa"><br>
+  password: <input type="text" name="password" value="aaaaaa"><br>
+  email: <input type="text" name="email" value="aaaa@aa.com"><br>
+  avatar: <input type="text" name="avatar"><br>
+  <input type="submit" value="Submit">
+</form>
+
+<p>Login:</p>
+<form action="http://127.0.0.1:18888/login" method="post">
+  username: <input type="text" name="username" value="aaa"><br>
+  password: <input type="text" name="password" value="aaaaaa"><br>
+  <input type="submit" value="Submit">
+</form>
+
+<p>User Edit:</p>
+<form action="http://127.0.0.1:18888/user" method="post">
+  token: <input type="text" name="token"><br>
+  avatar: <input type="text" name="avatar" value="http://www.xxx.com/1.png"><br>
+  <input type="submit" value="Submit">
+</form>
+
+<p>GetList:</p>
+<form action="http://127.0.0.1:18888/getList" method="post">
+  token: <input type="text" name="token"><br>
+  type: <input type="text" name="type" value="category"><br>
+  <input type="submit" value="Submit">
+</form>
+
+<p>SaveList:</p>
+<form action="http://127.0.0.1:18888/saveList" method="post">
+  token: <input type="text" name="token"><br>
+  type: <input type="text" name="type" value="category"><br>
+  data: <input type="text" name="data" value="[&quot;a&quot;, &quot;b&quot;]"><br>
+  <input type="submit" value="Submit">
+</form>

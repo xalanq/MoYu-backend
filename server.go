@@ -307,7 +307,7 @@ func webGetList(w http.ResponseWriter, r *http.Request) {
 			end = num
 		}
 		if skip >= end {
-			json.NewEncoder(w).Encode(make([]string, 0))
+			json.NewEncoder(w).Encode(OkResponse{[]string{}})
 			return
 		}
 		var resp OkResponse

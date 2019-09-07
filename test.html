@@ -77,3 +77,19 @@
   data: <input type="text" name="data" value="[&quot;id&quot;]"><br>
   <input type="submit" value="Submit">
 </form>
+
+<p>Add tags:</p>
+<form action="http://127.0.0.1:18888/addTags" method="post">
+  token: <input type="text" name="token"><br>
+  data: <input type="text" name="data" value="[{&quot;word&quot;:&quot;a&quot;, &quot;score&quot;:1.0},{&quot;word&quot;:&quot;b&quot;, &quot;score&quot;:2.0}]"><br>
+  <input type="submit" value="Submit">
+</form>
+
+<p>Get tags:</p>
+<form action="http://127.0.0.1:18888/getTags" method="post">
+  token: <input type="text" name="token"><br>
+  limit: <input type="text" name="limit" value="-1"><br>
+  <input type="submit" value="Submit">
+</form>
+
+<a href="http://127.0.0.1:18888/hotWord">Get Hot Word</a>

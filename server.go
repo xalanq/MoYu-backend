@@ -38,6 +38,7 @@ const (
 	InvalidDelList
 	InvalidNews
 	InvalidNewsList
+	InvalidTags
 )
 
 func webReturnError(w http.ResponseWriter, errorCode int) {
@@ -73,6 +74,8 @@ func webReturnError(w http.ResponseWriter, errorCode int) {
 		m = "非法的新闻"
 	case InvalidNewsList:
 		m = "非法的新闻列表"
+	case InvalidTags:
+		m = "非法的标签"
 	default:
 		m = "未知错误"
 	}
@@ -142,16 +145,17 @@ type Item struct {
 
 type User struct {
 	lock              *sync.RWMutex
-	ID                int      `json:"id"`
-	Username          string   `json:"username"`
-	Password          string   `json:"-"`
-	Email             string   `json:"email"`
-	Avatar            string   `json:"avatar"`
-	Token             string   `json:"token"`
-	CategoryList      []string `json:"-"`
-	SearchHistoryList []string `json:"-"`
-	FavoriteList      []Item   `json:"-"`
-	HistoryList       []Item   `json:"-"`
+	ID                int                `json:"id"`
+	Username          string             `json:"username"`
+	Password          string             `json:"-"`
+	Email             string             `json:"email"`
+	Avatar            string             `json:"avatar"`
+	Token             string             `json:"token"`
+	CategoryList      []string           `json:"-"`
+	SearchHistoryList []string           `json:"-"`
+	FavoriteList      []Item             `json:"-"`
+	HistoryList       []Item             `json:"-"`
+	Tags              map[string]float64 `json:"-"`
 }
 
 type RegisterResponse struct {
@@ -195,7 +199,7 @@ func webRegister(w http.ResponseWriter, r *http.Request) {
 	token := resetAccessToken(ID, "")
 	user := User{new(sync.RWMutex), ID, username, password, email, "", token,
 		reverse1([]string{"1社会", "1娱乐", "1体育", "1科技", "1军事", "0教育", "0文化", "0健康", "0财经", "0汽车"}),
-		make([]string, 0), make([]Item, 0), make([]Item, 0)}
+		make([]string, 0), make([]Item, 0), make([]Item, 0), make(map[string]float64)}
 	UserArray = append(UserArray, user)
 	UsernameMapID[username] = ID
 	EmailMapID[email] = ID
@@ -375,6 +379,8 @@ func webSetList(w http.ResponseWriter, r *http.Request) {
 	webReturnError(w, InvalidToken)
 }
 
+var hotWord = make(map[string]int)
+
 func webAddList(w http.ResponseWriter, r *http.Request) {
 	if !checkForm(w, r) {
 		return
@@ -403,6 +409,7 @@ func webAddList(w http.ResponseWriter, r *http.Request) {
 		case "category":
 			user.CategoryList = append(user.CategoryList, data1)
 		case "search_history":
+			hotWord[data1]++
 			user.SearchHistoryList = append(user.SearchHistoryList, data1)
 		case "favorite":
 			user.FavoriteList = append(user.FavoriteList, data2)
@@ -590,6 +597,104 @@ func webGetNews(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(OkResponse{data})
 }
 
+func webAddTags(w http.ResponseWriter, r *http.Request) {
+	if !checkForm(w, r) {
+		return
+	}
+	token := r.Form.Get("token")
+	var data []ScoreData
+	if err := json.Unmarshal([]byte(r.Form.Get("data")), &data); err != nil {
+		webReturnError(w, InvalidTags)
+		return
+	}
+	if ID, ok := getIDFromToken(token); ok {
+		user := &UserArray[ID]
+		user.lock.Lock()
+		defer user.lock.Unlock()
+		for _, d := range data {
+			user.Tags[d.Word] += d.Score
+		}
+		fmt.Fprintf(w, "{}")
+		return
+	}
+	webReturnError(w, InvalidToken)
+}
+
+func webGetTags(w http.ResponseWriter, r *http.Request) {
+	if !checkForm(w, r) {
+		return
+	}
+	token := r.Form.Get("token")
+	limit := -1
+	if tmp, err := strconv.Atoi(r.Form.Get("limit")); err == nil && tmp >= -1 {
+		limit = tmp
+	}
+	if ID, ok := getIDFromToken(token); ok {
+		user := &UserArray[ID]
+		user.lock.RLock()
+		defer user.lock.RUnlock()
+
+		type kv struct {
+			K string
+			V float64
+		}
+
+		ss := make([]kv, len(user.Tags))
+		i := 0
+		for k, v := range user.Tags {
+			ss[i] = kv{k, v}
+			i++
+		}
+
+		sort.Slice(ss, func(i, j int) bool {
+			return ss[i].V > ss[j].V
+		})
+
+		if limit == -1 {
+			limit = len(ss)
+		}
+
+		data := make([]string, limit)
+		for i, t := range ss {
+			data[i] = t.K
+		}
+
+		json.NewEncoder(w).Encode(OkResponse{data})
+		return
+	}
+	webReturnError(w, InvalidToken)
+}
+
+func webHotWord(w http.ResponseWriter, r *http.Request) {
+	limit := 10
+	if limit > len(hotWord) {
+		limit = len(hotWord)
+	}
+
+	type kv struct {
+		K string
+		V int
+	}
+
+	ss := make([]kv, len(hotWord))
+	i := 0
+	for k, v := range hotWord {
+		ss[i] = kv{k, v}
+		i++
+	}
+
+	sort.Slice(ss, func(i, j int) bool {
+		return ss[i].V > ss[j].V
+	})
+
+	data := make([]string, limit)
+	for i, t := range ss {
+		data[i] = t.K
+	}
+
+	json.NewEncoder(w).Encode(OkResponse{data})
+}
+
 func main() {
 	http.HandleFunc("/register", webRegister)
 	http.HandleFunc("/login", webLogin)
@@ -602,5 +707,8 @@ func main() {
 	http.HandleFunc("/hasList", webHasList)
 	http.HandleFunc("/addNews", webAddNews)
 	http.HandleFunc("/getNews", webGetNews)
+	http.HandleFunc("/addTags", webAddTags)
+	http.HandleFunc("/getTags", webGetTags)
+	http.HandleFunc("/hotWord", webHotWord)
 	log.Fatal(http.ListenAndServe(":18888", nil))
 }

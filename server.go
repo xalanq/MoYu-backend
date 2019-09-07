@@ -144,18 +144,24 @@ type Item struct {
 }
 
 type User struct {
-	lock              *sync.RWMutex
-	ID                int                `json:"id"`
-	Username          string             `json:"username"`
-	Password          string             `json:"-"`
-	Email             string             `json:"email"`
-	Avatar            string             `json:"avatar"`
-	Token             string             `json:"token"`
-	CategoryList      []string           `json:"-"`
-	SearchHistoryList []string           `json:"-"`
-	FavoriteList      []Item             `json:"-"`
-	HistoryList       []Item             `json:"-"`
-	Tags              map[string]float64 `json:"-"`
+	ID                    int                `json:"id"`
+	Username              string             `json:"username"`
+	Password              string             `json:"-"`
+	Email                 string             `json:"email"`
+	Avatar                string             `json:"avatar"`
+	AvatarLock            *sync.RWMutex      `json:"-"`
+	Token                 string             `json:"token"`
+	TokenLock             *sync.RWMutex      `json:"-"`
+	CategoryList          []string           `json:"-"`
+	CategoryListLock      *sync.RWMutex      `json:"-"`
+	SearchHistoryList     []string           `json:"-"`
+	SearchHistoryListLock *sync.RWMutex      `json:"-"`
+	FavoriteList          []Item             `json:"-"`
+	FavoriteListLock      *sync.RWMutex      `json:"-"`
+	HistoryList           []Item             `json:"-"`
+	HistoryListLock       *sync.RWMutex      `json:"-"`
+	Tags                  map[string]float64 `json:"-"`
+	TagsLock              *sync.RWMutex      `json:"-"`
 }
 
 type RegisterResponse struct {
@@ -197,9 +203,14 @@ func webRegister(w http.ResponseWriter, r *http.Request) {
 	password = fmt.Sprintf("%x", sha256.Sum256([]byte("gggg"+password+"mf")))
 	ID := len(UserArray)
 	token := resetAccessToken(ID, "")
-	user := User{new(sync.RWMutex), ID, username, password, email, "", token,
-		reverse1([]string{"1社会", "1娱乐", "1体育", "1科技", "1军事", "0教育", "0文化", "0健康", "0财经", "0汽车"}),
-		make([]string, 0), make([]Item, 0), make([]Item, 0), make(map[string]float64)}
+	user := User{ID, username, password, email,
+		"", new(sync.RWMutex),
+		token, new(sync.RWMutex),
+		reverse1([]string{"1社会", "1娱乐", "1体育", "1科技", "1军事", "0教育", "0文化", "0健康", "0财经", "0汽车"}), new(sync.RWMutex),
+		make([]string, 0), new(sync.RWMutex),
+		make([]Item, 0), new(sync.RWMutex),
+		make([]Item, 0), new(sync.RWMutex),
+		make(map[string]float64), new(sync.RWMutex)}
 	UserArray = append(UserArray, user)
 	UsernameMapID[username] = ID
 	EmailMapID[email] = ID
@@ -215,6 +226,8 @@ func webLogin(w http.ResponseWriter, r *http.Request) {
 	if ID, ok := UsernameMapID[username]; ok {
 		user := &UserArray[ID]
 		if user.Password == password {
+			user.TokenLock.Lock()
+			defer user.TokenLock.Unlock()
 			user.Token = resetAccessToken(ID, user.Token)
 			json.NewEncoder(w).Encode(user)
 			return
@@ -230,8 +243,10 @@ func webUserInfo(w http.ResponseWriter, r *http.Request) {
 	token := r.Form.Get("token")
 	if ID, ok := getIDFromToken(token); ok {
 		user := &UserArray[ID]
-		user.lock.RLock()
-		defer user.lock.RUnlock()
+		user.AvatarLock.RLock()
+		defer user.AvatarLock.RUnlock()
+		user.TokenLock.RLock()
+		defer user.TokenLock.RUnlock()
 		json.NewEncoder(w).Encode(user)
 		return
 	}
@@ -250,9 +265,9 @@ func webUserEdit(w http.ResponseWriter, r *http.Request) {
 	}
 	if ID, ok := getIDFromToken(token); ok {
 		user := &UserArray[ID]
-		user.lock.Lock()
+		user.AvatarLock.Lock()
+		defer user.AvatarLock.Unlock()
 		user.Avatar = avatar
-		user.lock.Unlock()
 		fmt.Fprintf(w, "{}")
 		return
 	}
@@ -295,17 +310,23 @@ func webGetList(w http.ResponseWriter, r *http.Request) {
 	}
 	if ID, ok := getIDFromToken(token); ok {
 		user := &UserArray[ID]
-		user.lock.RLock()
-		defer user.lock.RUnlock()
 		num := 0
 		switch listType {
 		case "category":
+			user.CategoryListLock.RLock()
+			defer user.CategoryListLock.RUnlock()
 			num = len(user.CategoryList)
 		case "search_history":
+			user.SearchHistoryListLock.RLock()
+			defer user.SearchHistoryListLock.RUnlock()
 			num = len(user.SearchHistoryList)
 		case "favorite":
+			user.FavoriteListLock.RLock()
+			defer user.FavoriteListLock.RUnlock()
 			num = len(user.FavoriteList)
 		case "history":
+			user.HistoryListLock.RLock()
+			defer user.HistoryListLock.RUnlock()
 			num = len(user.HistoryList)
 		}
 		end := skip + limit
@@ -313,7 +334,7 @@ func webGetList(w http.ResponseWriter, r *http.Request) {
 			end = num
 		}
 		if skip >= end {
-			json.NewEncoder(w).Encode(OkResponse{[]string{}})
+			json.NewEncoder(w).Encode(OkResponse{make([]string, 0)})
 			return
 		}
 		var resp OkResponse
@@ -361,16 +382,22 @@ func webSetList(w http.ResponseWriter, r *http.Request) {
 	}
 	if ID, ok := getIDFromToken(token); ok {
 		user := &UserArray[ID]
-		user.lock.Lock()
-		defer user.lock.Unlock()
 		switch listType {
 		case "category":
+			user.CategoryListLock.Lock()
+			defer user.CategoryListLock.Unlock()
 			user.CategoryList = reverse1(data1)
 		case "search_history":
+			user.SearchHistoryListLock.Lock()
+			defer user.SearchHistoryListLock.Unlock()
 			user.SearchHistoryList = reverse1(data1)
 		case "favorite":
+			user.FavoriteListLock.Lock()
+			defer user.FavoriteListLock.Unlock()
 			user.FavoriteList = reverse2(data2)
 		case "history":
+			user.HistoryListLock.Lock()
+			defer user.HistoryListLock.Unlock()
 			user.HistoryList = reverse2(data2)
 		}
 		fmt.Fprintf(w, "{}")
@@ -403,18 +430,42 @@ func webAddList(w http.ResponseWriter, r *http.Request) {
 	}
 	if ID, ok := getIDFromToken(token); ok {
 		user := &UserArray[ID]
-		user.lock.Lock()
-		defer user.lock.Unlock()
 		switch listType {
 		case "category":
+			user.CategoryListLock.Lock()
+			defer user.CategoryListLock.Unlock()
 			user.CategoryList = append(user.CategoryList, data1)
 		case "search_history":
+			user.SearchHistoryListLock.Lock()
+			defer user.SearchHistoryListLock.Unlock()
 			hotWord[data1]++
-			user.SearchHistoryList = append(user.SearchHistoryList, data1)
+			flag := true
+			for _, i := range user.SearchHistoryList {
+				if i == data1 {
+					flag = false
+					break
+				}
+			}
+			if flag {
+				user.SearchHistoryList = append(user.SearchHistoryList, data1)
+			}
 		case "favorite":
+			user.FavoriteListLock.Lock()
+			defer user.FavoriteListLock.Unlock()
 			user.FavoriteList = append(user.FavoriteList, data2)
 		case "history":
-			user.HistoryList = append(user.HistoryList, data2)
+			user.HistoryListLock.Lock()
+			defer user.HistoryListLock.Unlock()
+			flag := true
+			for _, i := range user.HistoryList {
+				if i.NewsID == data2.NewsID {
+					flag = false
+					break
+				}
+			}
+			if flag {
+				user.HistoryList = append(user.HistoryList, data2)
+			}
 		}
 		fmt.Fprintf(w, "{}")
 		return
@@ -453,16 +504,22 @@ func webDelList(w http.ResponseWriter, r *http.Request) {
 	data := r.Form.Get("data")
 	if ID, ok := getIDFromToken(token); ok {
 		user := &UserArray[ID]
-		user.lock.Lock()
-		defer user.lock.Unlock()
 		switch listType {
 		case "category":
+			user.CategoryListLock.Lock()
+			defer user.CategoryListLock.Unlock()
 			user.CategoryList = remove1(user.CategoryList, data)
 		case "search_history":
+			user.SearchHistoryListLock.Lock()
+			defer user.SearchHistoryListLock.Unlock()
 			user.SearchHistoryList = remove1(user.SearchHistoryList, data)
 		case "favorite":
+			user.FavoriteListLock.Lock()
+			defer user.FavoriteListLock.Unlock()
 			user.FavoriteList = remove2(user.FavoriteList, data)
 		case "history":
+			user.HistoryListLock.Lock()
+			defer user.HistoryListLock.Unlock()
 			user.HistoryList = remove2(user.HistoryList, data)
 		}
 		fmt.Fprintf(w, "{}")
@@ -502,17 +559,23 @@ func webHasList(w http.ResponseWriter, r *http.Request) {
 	data := r.Form.Get("data")
 	if ID, ok := getIDFromToken(token); ok {
 		user := &UserArray[ID]
-		user.lock.RLock()
 		has := false
-		defer user.lock.RUnlock()
 		switch listType {
 		case "category":
+			user.CategoryListLock.RLock()
+			defer user.CategoryListLock.RUnlock()
 			has = has1(user.CategoryList, data)
 		case "search_history":
+			user.SearchHistoryListLock.RLock()
+			defer user.SearchHistoryListLock.RUnlock()
 			has = has1(user.SearchHistoryList, data)
 		case "favorite":
+			user.FavoriteListLock.RLock()
+			defer user.FavoriteListLock.RUnlock()
 			has = has2(user.FavoriteList, data)
 		case "history":
+			user.HistoryListLock.RLock()
+			defer user.HistoryListLock.RUnlock()
 			has = has2(user.HistoryList, data)
 		}
 		json.NewEncoder(w).Encode(OkResponse{has})
@@ -586,7 +649,7 @@ func webGetNews(w http.ResponseWriter, r *http.Request) {
 		webReturnError(w, InvalidNewsList)
 		return
 	}
-	var data []News
+	data := make([]News, 0)
 	NewsMutex.RLock()
 	for _, id := range IDList {
 		if news, ok := NewsMap[id]; ok {
@@ -609,8 +672,8 @@ func webAddTags(w http.ResponseWriter, r *http.Request) {
 	}
 	if ID, ok := getIDFromToken(token); ok {
 		user := &UserArray[ID]
-		user.lock.Lock()
-		defer user.lock.Unlock()
+		user.TagsLock.Lock()
+		defer user.TagsLock.Unlock()
 		for _, d := range data {
 			user.Tags[d.Word] += d.Score
 		}
@@ -631,8 +694,8 @@ func webGetTags(w http.ResponseWriter, r *http.Request) {
 	}
 	if ID, ok := getIDFromToken(token); ok {
 		user := &UserArray[ID]
-		user.lock.RLock()
-		defer user.lock.RUnlock()
+		user.TagsLock.RLock()
+		defer user.TagsLock.RUnlock()
 
 		type kv struct {
 			K string

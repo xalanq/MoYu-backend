@@ -193,7 +193,9 @@ func webRegister(w http.ResponseWriter, r *http.Request) {
 	password = fmt.Sprintf("%x", sha256.Sum256([]byte("gggg"+password+"mf")))
 	ID := len(UserArray)
 	token := resetAccessToken(ID, "")
-	user := User{new(sync.RWMutex), ID, username, password, email, "", token, make([]string, 0), make([]string, 0), make([]Item, 0), make([]Item, 0)}
+	user := User{new(sync.RWMutex), ID, username, password, email, "", token,
+		reverse1([]string{"1社会", "1娱乐", "1体育", "1科技", "1军事", "0教育", "0文化", "0健康", "0财经", "0汽车"}),
+		make([]string, 0), make([]Item, 0), make([]Item, 0)}
 	UserArray = append(UserArray, user)
 	UsernameMapID[username] = ID
 	EmailMapID[email] = ID
@@ -517,16 +519,37 @@ type ScoreData struct {
 	Word  string  `json:"word"`
 }
 
+type MentionData struct {
+	Count int    `json:"count"`
+	Url   string `json:"linkedURL"`
+	Word  string `json:"mention"`
+}
+
+type LocationData struct {
+	Longitude float64 `json:"lng"`
+	Latitude  float64 `json:"lat"`
+	Count     int     `json:"count"`
+	Url       string  `json:"linkedURL"`
+	Word      string  `json:"mention"`
+}
+
 type News struct {
-	ID          string      `json:"newsID"`
-	Title       string      `json:"title"`
-	Content     string      `json:"content"`
-	PublishTime string      `json:"publishTime"`
-	Category    string      `json:"category"`
-	Image       string      `json:"image"`
-	Video       string      `json:"video"`
-	Publisher   string      `json:"publisher"`
-	Keywords    []ScoreData `json:"keywords"`
+	ID            string         `json:"newsID"`
+	Title         string         `json:"title"`
+	Content       string         `json:"content"`
+	PublishTime   string         `json:"publishTime"`
+	Language      string         `json:"language"`
+	Category      string         `json:"category"`
+	Image         string         `json:"image"`
+	Video         string         `json:"video"`
+	Publisher     string         `json:"publisher"`
+	Keywords      []ScoreData    `json:"keywords"`
+	When          []ScoreData    `json:"when"`
+	Where         []ScoreData    `json:"where"`
+	Who           []ScoreData    `json:"who"`
+	Organizations []MentionData  `json:"organizations"`
+	Person        []MentionData  `json:"persons"`
+	Location      []LocationData `json:"locations"`
 }
 
 var NewsMap = make(map[string]News)

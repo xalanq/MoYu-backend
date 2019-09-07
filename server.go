@@ -650,13 +650,13 @@ func webGetTags(w http.ResponseWriter, r *http.Request) {
 			return ss[i].V > ss[j].V
 		})
 
-		if limit == -1 {
+		if limit == -1 || limit > len(ss) {
 			limit = len(ss)
 		}
 
 		data := make([]string, limit)
-		for i, t := range ss {
-			data[i] = t.K
+		for i := 0; i < limit; i++ {
+			data[i] = ss[i].K
 		}
 
 		json.NewEncoder(w).Encode(OkResponse{data})
@@ -688,14 +688,21 @@ func webHotWord(w http.ResponseWriter, r *http.Request) {
 	})
 
 	data := make([]string, limit)
-	for i, t := range ss {
-		data[i] = t.K
+	for i := 0; i < limit; i++ {
+		data[i] = ss[i].K
 	}
 
 	json.NewEncoder(w).Encode(OkResponse{data})
 }
 
 func main() {
+	hotWord["特朗普"] = 1
+	hotWord["香港"] = 2
+	hotWord["方舟编译器开源"] = 0
+	hotWord["iPhone 11曝光"] = 0
+	hotWord["华为发布 Freebuds3"] = 2
+	hotWord["华为发布 5G 芯片"] = 1
+	hotWord["iG 3:2 JDG"] = 1
 	http.HandleFunc("/register", webRegister)
 	http.HandleFunc("/login", webLogin)
 	http.HandleFunc("/userInfo", webUserInfo)
